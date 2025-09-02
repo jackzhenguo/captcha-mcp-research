@@ -11,8 +11,9 @@ PORT     = int(os.getenv("PORT", "8000"))
 
 app = Flask(__name__, template_folder="templates", static_folder=None)
 
-METRICS = dict(total=0, passed=0, failed=0, last_ms=0)
+METRICS = dict(total=0, passed=0, failed=0, last_ms=0, last=None, last_ts=0)
 LOCK = threading.Lock()
+
 
 @app.get("/")
 def index():
@@ -24,16 +25,28 @@ def recaptcha():
         return "Missing RECAPTCHA_SITE_KEY", 500
     return render_template("recaptcha_invisible.html", site_key=SITE_KEY)
 
+
 @app.post("/api/verify")
 def api_verify():
     data = request.get_json(silent=True) or {}
     token = (data.get("token") or "").strip()
     t0 = time.time()
-    if not token:
+
+    def record(success, reason=None):
+        ms = int((time.time() - t0) * 1000)
         with LOCK:
-            METRICS["total"] += 1; METRICS["failed"] += 1
-            METRICS["last_ms"] = int((time.time()-t0)*1000)
+            METRICS["total"] += 1
+            METRICS["last_ms"] = ms
+            METRICS["last"] = "PASS" if success else ("FAIL" if reason != "missing_token" else "MISSING")
+            METRICS["last_ts"] = int(time.time() * 1000)
+            if success: METRICS["passed"] += 1
+            else: METRICS["failed"] += 1
+        return success, ms
+
+    if not token:
+        record(False, "missing_token")
         return jsonify({"ok": False, "reason": "missing_token"}), 400
+
     try:
         r = requests.post(
             "https://www.google.com/recaptcha/api/siteverify",
@@ -42,17 +55,12 @@ def api_verify():
         )
         result = r.json()
         success = bool(result.get("success"))
+        success, _ = record(success)
     except Exception as e:
-        with LOCK:
-            METRICS["total"] += 1; METRICS["failed"] += 1
-            METRICS["last_ms"] = int((time.time()-t0)*1000)
+        record(False, "verify_error")
         return jsonify({"ok": False, "reason": f"verify_error:{e}"}), 502
 
     verdict_text = "PASS: reCAPTCHA" if success else "FAIL: reCAPTCHA"
-    with LOCK:
-        METRICS["total"] += 1
-        METRICS["passed" if success else "failed"] += 1
-        METRICS["last_ms"] = int((time.time()-t0)*1000)
     return jsonify({"ok": True, "success": success, "verdict": verdict_text, "raw": result})
 
 @app.get("/metrics")
@@ -63,8 +71,9 @@ def metrics():
 @app.post("/reset_metrics")
 def reset():
     with LOCK:
-        METRICS.update(total=0, passed=0, failed=0, last_ms=0)
+        METRICS.update(total=0, passed=0, failed=0, last_ms=0, last=None, last_ts=0)
     return jsonify({"ok": True})
+
 
 if __name__ == "__main__":
     app.run(host=HOST, port=PORT)
