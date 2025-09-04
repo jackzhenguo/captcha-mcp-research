@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <title>Invisible reCAPTCHA v2 — Centered + Keyboard</title>
@@ -7,39 +8,58 @@
   <!-- Google reCAPTCHA v2 -->
   <script src="https://www.google.com/recaptcha/api.js" async defer></script>
   <style>
-    html, body { height: 100%; }
+    html,
+    body {
+      height: 100%;
+    }
+
     body {
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      display: flex; align-items: center; justify-content: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
-    main { text-align: center; max-width: 720px; padding: 24px; }
-    .badge-wrap { display: flex; justify-content: center; margin-top: 16px; }
-    .result { margin-top: 16px; font-weight: 700; }
-    kbd { background: #eee; border-radius: 4px; padding: 2px 6px; }
+
+    main {
+      text-align: center;
+      max-width: 720px;
+      padding: 24px;
+    }
+
+    .badge-wrap {
+      display: flex;
+      justify-content: center;
+      margin-top: 16px;
+    }
+
+    .result {
+      margin-top: 16px;
+      font-weight: 700;
+    }
+
+    kbd {
+      background: #eee;
+      border-radius: 4px;
+      padding: 2px 6px;
+    }
   </style>
 </head>
+
 <body>
   <main>
     <h1>Invisible reCAPTCHA v2 — Centered + Keyboard</h1>
 
     <!-- Host-page control (focusable, auto-focused) -->
-    <button id="verifyBtn"
-            data-testid="verify-btn"
-            aria-label="Verify Now"
-            autofocus
-            onclick="triggerVerify()">
+    <button id="verifyBtn" data-testid="verify-btn" aria-label="Verify Now" autofocus onclick="triggerVerify()">
       Verify Now
     </button>
     <p>Tip: press <kbd>V</kbd> or <kbd>Enter</kbd> to verify.</p>
 
     <!-- Centered badge: inline mode -->
     <div class="badge-wrap">
-      <div id="recaptcha" class="g-recaptcha"
-           data-sitekey="{{ site_key }}"
-           data-size="invisible"
-           data-callback="onRecaptchaSuccess"
-           data-badge="inline">
+      <div id="recaptcha" class="g-recaptcha" data-sitekey="6LebX74rAAAAAHYIG4CRn_9eqSs0TDMI4l92OnjL"
+        data-size="invisible" data-callback="onRecaptchaSuccess" data-badge="inline">
       </div>
     </div>
 
@@ -48,25 +68,25 @@
   </main>
 
   <script>
+    const VERIFY_URL = "https://<your-fastapi-host>/api/verify"; // <-- change this
+
     function triggerVerify() {
       try { grecaptcha.execute(); } catch (e) {
         document.getElementById("verdict").textContent = "FAIL: reCAPTCHA (client)";
       }
     }
 
-    // Keyboard shortcuts: V or Enter
     addEventListener("keydown", (e) => {
       if (e.key === "v" || e.key === "V" || e.key === "Enter") {
-        e.preventDefault();
-        triggerVerify();
+        e.preventDefault(); triggerVerify();
       }
     });
 
     async function onRecaptchaSuccess(token) {
       try {
-        const r = await fetch("/api/verify", {
+        const r = await fetch(VERIFY_URL, {
           method: "POST",
-          headers: {"Content-Type": "application/json"},
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ token })
         });
         const data = await r.json();
@@ -80,4 +100,5 @@
     window.onRecaptchaSuccess = onRecaptchaSuccess;
   </script>
 </body>
+
 </html>
