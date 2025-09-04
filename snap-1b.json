@@ -1,8 +1,0 @@
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "### Page state\n- Page URL: http://127.0.0.1:8000/recaptcha\n- Page Title: Invisible reCAPTCHA v2 — Snapshot-friendly\n- Page Snapshot:\n```yaml\n- main [ref=e2]:\n  - heading \"Invisible reCAPTCHA v2 — Snapshot-friendly\" [level=1] [ref=e3]\n  - iframe [ref=e6]:\n    - generic [active] [ref=f1e1]:\n      - generic [ref=f1e2]: This reCAPTCHA is for testing purposes only. Please report to the site admin if you are seeing this.\n      - generic [ref=f1e3]:\n        - generic [ref=f1e6]:\n          - link \"Privacy\" [ref=f1e7] [cursor=pointer]:\n            - /url: https://www.google.com/intl/en/policies/privacy/\n          - text: \"-\"\n          - link \"Terms\" [ref=f1e8] [cursor=pointer]:\n            - /url: https://www.google.com/intl/en/policies/terms/\n        - generic [ref=f1e9]:\n          - generic [ref=f1e10]:\n            - text: protected by\n            - strong [ref=f1e11]: reCAPTCHA\n          - generic [ref=f1e12]: \"-\"\n  - button \"Verify Now\" [ref=e7]\n  - status [ref=e8]: Waiting…\n```\n"
-    }
-  ]
-}
