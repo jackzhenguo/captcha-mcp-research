@@ -46,7 +46,7 @@
     });
 
     function onRecaptchaSuccess(token) {
-      document.getElementById("verdict").textContent = "Client token: " + token;
+      document.getElementById("verdict").textContent = "Client token: " + token.slice(0,12) + "…";
     }
     window.onRecaptchaSuccess = onRecaptchaSuccess;
   </script>
