@@ -2,57 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Invisible reCAPTCHA v2 — Centered + Keyboard</title>
+  <title>Invisible reCAPTCHA v2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- Load reCAPTCHA (explicit render to avoid ambiguity) -->
+  <!-- Explicit render to avoid ambiguity -->
   <script src="https://www.google.com/recaptcha/api.js?onload=recaptchaReady&render=explicit" async defer></script>
-
   <style>
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      display: flex; align-items: center; justify-content: center;
-    }
-    main { text-align: center; max-width: 720px; padding: 24px; }
-    .badge-wrap { display: flex; justify-content: center; margin-top: 16px; }
-    .result { margin-top: 16px; font-weight: 700; }
-    kbd { background: #eee; border-radius: 4px; padding: 2px 6px; }
+    html,body{height:100%} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center}
+    main{text-align:center;max-width:720px;padding:24px} .badge-wrap{display:flex;justify-content:center;margin-top:16px}
+    .result{margin-top:16px;font-weight:700}
   </style>
 </head>
 <body>
   <main>
-    <h1>Invisible reCAPTCHA v2 — Centered + Keyboard</h1>
+    <h1>Invisible reCAPTCHA v2</h1>
 
-    <!-- Host-page control -->
-    <button id="verifyBtn" aria-label="Verify Now" onclick="triggerVerify()" disabled>
-      Verify Now
-    </button>
-    <p>Tip: press <kbd>V</kbd> or <kbd>Enter</kbd> to verify.</p>
+    <button id="verifyBtn" onclick="triggerVerify()" disabled>Verify Now</button>
+    <p>Tip: press V or Enter.</p>
 
-    <!-- Inline badge container -->
-    <div class="badge-wrap">
-      <div id="recaptcha"></div>
-    </div>
-
-    <!-- Server verdict -->
-    <h2 id="verdict" class="result" role="status" aria-live="polite">Waiting…</h2>
+    <div class="badge-wrap"><div id="recaptcha"></div></div>
+    <h2 id="verdict" class="result" aria-live="polite">Waiting…</h2>
   </main>
 
   <script>
-    // ------------- EDIT THESE 2 LINES -------------
-    // 1) Put your SITE KEY here (public key from reCAPTCHA admin).
-    const RECAPTCHA_SITE_KEY = "YOUR_SITE_KEY_HERE";
-    // 2) Point to your FastAPI verification endpoint.
-    const VERIFY_URL = "https://your-fastapi-hostname.example.com/api/verify";
-    // ----------------------------------------------
+    const SITE_KEY = "6LebX74rAAAAAHYiG4CRn_9eqSs0TDMi4I92OnjL";
 
     let widgetId = null;
 
     function recaptchaReady() {
       widgetId = grecaptcha.render("recaptcha", {
-        sitekey: RECAPTCHA_SITE_KEY,
+        sitekey: SITE_KEY,
         size: "invisible",
         badge: "inline",
         callback: onRecaptchaSuccess,
@@ -66,31 +44,13 @@
       catch { document.getElementById("verdict").textContent = "FAIL: reCAPTCHA (client)"; }
     }
 
-    // Keyboard shortcuts: V or Enter
     addEventListener("keydown", (e) => {
-      if (e.key === "v" || e.key === "V" || e.key === "Enter") {
-        e.preventDefault();
-        triggerVerify();
-      }
+      if (e.key === "v" || e.key === "V" || e.key === "Enter") { e.preventDefault(); triggerVerify(); }
     });
 
-    async function onRecaptchaSuccess(token) {
-      // If you don't have a backend yet, uncomment next line to show token prefix for sanity check:
-      // document.getElementById("verdict").textContent = "Client token: " + token.slice(0,12) + "..."; return;
-
-      try {
-        const r = await fetch(VERIFY_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-        });
-        const data = await r.json();
-        const el = document.getElementById("verdict");
-        if (!data.ok) { el.textContent = "FAIL: reCAPTCHA (server error)"; return; }
-        el.textContent = data.verdict || (data.success ? "PASS: reCAPTCHA" : "FAIL: reCAPTCHA");
-      } catch {
-        document.getElementById("verdict").textContent = "FAIL: reCAPTCHA (network)";
-      }
+    function onRecaptchaSuccess(token) {
+      // No server verification — just show token prefix as proof it ran.
+      document.getElementById("verdict").textContent = "Client token: " + token.slice(0, 12) + "…";
     }
     window.onRecaptchaSuccess = onRecaptchaSuccess;
   </script>
