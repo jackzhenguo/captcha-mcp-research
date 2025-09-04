@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <title>Invisible reCAPTCHA v2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Explicit render to avoid ambiguity -->
   <script src="https://www.google.com/recaptcha/api.js?onload=recaptchaReady&render=explicit" async defer></script>
   <style>
     html,body{height:100%} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center}
@@ -15,19 +14,17 @@
 <body>
   <main>
     <h1>Invisible reCAPTCHA v2</h1>
-
     <button id="verifyBtn" onclick="triggerVerify()" disabled>Verify Now</button>
     <p>Tip: press V or Enter.</p>
-
     <div class="badge-wrap"><div id="recaptcha"></div></div>
     <h2 id="verdict" class="result" aria-live="polite">Waiting…</h2>
   </main>
 
   <script>
-    const SITE_KEY = "6LebX74rAAAAAHYiG4CRn_9eqSs0TDMi4I92OnjL";
+    // Use your real SITE key (public)
+    const SITE_KEY = "6LebX74rAAAAAPKIvCwdLvyZgdis2bS4NQ_1QYci";
 
     let widgetId = null;
-
     function recaptchaReady() {
       widgetId = grecaptcha.render("recaptcha", {
         sitekey: SITE_KEY,
@@ -49,8 +46,7 @@
     });
 
     function onRecaptchaSuccess(token) {
-      // No server verification — just show token prefix as proof it ran.
-      document.getElementById("verdict").textContent = "Client token: " + token.slice(0, 12) + "…";
+      document.getElementById("verdict").textContent = "Client token: " + token.slice(0,12) + "…";
     }
     window.onRecaptchaSuccess = onRecaptchaSuccess;
   </script>
