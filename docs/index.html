@@ -1,30 +1,60 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <title>Invisible reCAPTCHA v2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://www.google.com/recaptcha/api.js?onload=recaptchaReady&render=explicit" async defer></script>
   <style>
-    html,body{height:100%} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center}
-    main{text-align:center;max-width:720px;padding:24px} .badge-wrap{display:flex;justify-content:center;margin-top:16px}
-    .result{margin-top:16px;font-weight:700}
+    html,
+    body {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    main {
+      text-align: center;
+      max-width: 720px;
+      padding: 24px
+    }
+
+    .badge-wrap {
+      display: flex;
+      justify-content: center;
+      margin-top: 16px
+    }
+
+    .result {
+      margin-top: 16px;
+      font-weight: 700
+    }
   </style>
 </head>
+
 <body>
   <main>
     <h1>Invisible reCAPTCHA v2</h1>
     <button id="verifyBtn" onclick="triggerVerify()" disabled>Verify Now</button>
     <p>Tip: press V or Enter.</p>
-    <div class="badge-wrap"><div id="recaptcha"></div></div>
+    <div class="badge-wrap">
+      <div id="recaptcha"></div>
+    </div>
     <h2 id="verdict" class="result" aria-live="polite">Waiting…</h2>
   </main>
 
   <script>
-    // Use your real SITE key (public)
-    const SITE_KEY = "6LebX74rAAAAAPKIvCwdLvyZgdis2bS4NQ_1QYci";
-
+    // 用真正的 Site key（公钥）
+    const SITE_KEY = "6LebX74rAAAAAHYiG4CRn_9eqSs0TDMi4l92OnjL";
     let widgetId = null;
+
     function recaptchaReady() {
       widgetId = grecaptcha.render("recaptcha", {
         sitekey: SITE_KEY,
@@ -46,9 +76,11 @@
     });
 
     function onRecaptchaSuccess(token) {
-      document.getElementById("verdict").textContent = "Client token: " + token.slice(0,12) + "…";
+      document.getElementById("verdict").textContent = "Client token: " + token.slice(0, 12) + "…";
     }
     window.onRecaptchaSuccess = onRecaptchaSuccess;
   </script>
+
 </body>
+
 </html>
