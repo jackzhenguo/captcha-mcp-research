@@ -1,58 +1,24 @@
 <!doctype html>
 <html lang="en">
-
 <head>
   <meta charset="utf-8" />
   <title>Invisible reCAPTCHA v2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://www.google.com/recaptcha/api.js?onload=recaptchaReady&render=explicit" async defer></script>
-  <style>
-    html,
-    body {
-      height: 100%
-    }
-
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center
-    }
-
-    main {
-      text-align: center;
-      max-width: 720px;
-      padding: 24px
-    }
-
-    .badge-wrap {
-      display: flex;
-      justify-content: center;
-      margin-top: 16px
-    }
-
-    .result {
-      margin-top: 16px;
-      font-weight: 700
-    }
-  </style>
 </head>
-
-<body>
-  <main>
+<body style="margin:0;font-family:system-ui;-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh">
+  <main style="text-align:center;max-width:720px;padding:24px">
     <h1>Invisible reCAPTCHA v2</h1>
     <button id="verifyBtn" onclick="triggerVerify()" disabled>Verify Now</button>
     <p>Tip: press V or Enter.</p>
-    <div class="badge-wrap">
+    <div style="display:flex;justify-content:center;margin-top:16px">
       <div id="recaptcha"></div>
     </div>
-    <h2 id="verdict" class="result" aria-live="polite">Waiting…</h2>
+    <h2 id="verdict" style="margin-top:16px;font-weight:700" aria-live="polite">Waiting…</h2>
   </main>
 
   <script>
-    // 用真正的 Site key（公钥）
-    const SITE_KEY = "6LebX74rAAAAAHYiG4CRn_9eqSs0TDMi4l92OnjL";
+    const SITE_KEY = "6LebX74rAAAAAHYiG4CRn_9eqSs0TDMi4I92OnjL";
     let widgetId = null;
 
     function recaptchaReady() {
@@ -60,7 +26,7 @@
         sitekey: SITE_KEY,
         size: "invisible",
         badge: "inline",
-        callback: onRecaptchaSuccess,
+        callback: onRecaptchaSuccess
       });
       document.getElementById("verifyBtn").disabled = false;
     }
@@ -76,11 +42,8 @@
     });
 
     function onRecaptchaSuccess(token) {
-      document.getElementById("verdict").textContent = "Client token: " + token.slice(0, 12) + "…";
+      document.getElementById("verdict").textContent = "Client token: " + token.slice(0,12) + "…";
     }
-    window.onRecaptchaSuccess = onRecaptchaSuccess;
   </script>
-
 </body>
-
 </html>
