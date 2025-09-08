@@ -3,6 +3,10 @@ from registry import AgentState
 from selection import select_candidates_node
 from executor import invoke_server_node, pick_next_node, should_continue
 
+# Select candidate servers/tools.
+# Invoke one of them.
+# If success → stop. If failure → pick next candidate and try again.
+# Loop until success or out of attempts.
 
 def _wrap_async(fn):
     async def _inner(state): return await fn(state)

@@ -5,27 +5,28 @@ from mcp_client import MCPConnector
 
 
 async def main():
+    # If you run Playwright MCP locally with:  
+    # npx @playwright/mcp@latest --port 8931
+    # then your SSE endpoint is http://localhost:8931/sse
     servers: list[MCPServer] = [
         {
-            "id": "browser-us-1",
-            "base_url": "https://mcp.example.com/browser-us-1",
-            "auth": {"type": "bearer", "token": "XXX"},
-            "tools": [{"name": "web.open", "schema": {}},
-                      {"name": "web.wait", "schema": {}},
-                      {"name": "web.text", "schema": {}}],
-            "tags": ["browser", "region:us"],
+            "id": "playwright-local",
+            "base_url": "http://localhost:8931/sse",   # SSE endpoint of Playwright MCP
+            "auth": None,                           
+            "tools": [
+                {"name": "browser_tab_new", "schema": {"url": {"type": "string", "required": False}}},
+                {"name": "browser_tab_select", "schema": {"index": {"type": "number"}}},
+                {"name": "browser_navigate", "schema": {"url": {"type": "string"}}},
+                {"name": "browser_snapshot", "schema": {}},
+                # Optional helpers you may use later:
+                {"name": "browser_take_screenshot", "schema": {"raw": {"type": "boolean", "required": False}}},
+                {"name": "browser_wait", "schema": {"time": {"type": "number"}}},
+                {"name": "browser_close", "schema": {}},
+            ],
+            "tags": ["browser", "region:us", "playwright"],
             "healthy": True,
-        }
+        },
     ]
-
-    # Monkey-patch for demo
-    async def fake_call_tool(self, name, args):
-        if "web" in name:
-            return {"ok": True, "tool": name, "args": args}
-        
-        raise RuntimeError("Simulated failure")
-    
-    MCPConnector.call_tool = fake_call_tool
 
     init_state: AgentState = {
         "task": "Fetch homepage title",

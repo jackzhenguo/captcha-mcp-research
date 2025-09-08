@@ -3,19 +3,26 @@ from typing import List
 from registry import AgentState, MCPServer
 
 SELECTION_SYSTEM = "You select MCP servers for a task. Return JSON only."
-SELECTION_USER_TMPL = """Task:
-{task}
+SELECTION_USER_TMPL = """Task: {task}
+Targets: {targets}
 
-Target URLs or domains:
-{targets}
-
-Available MCP servers (truncated fields):
+Servers (id, tools, tags, healthy, latency, capabilities.captcha, backoff_until): 
 {servers_brief}
 
-Selection criteria:
-- must have browser/web tools
-- prefer healthy servers, low latency
-Return JSON ONLY.
+Selection rules:
+- Strongly prefer servers with good CAPTCHA capability (detect, metadata, handoff, enterprise token). 
+  Score: 1.0 = full support; 0.75 = detect+metadata+handoff; 0.5 = detect only; 0.0 = none.
+- After CAPTCHA, prefer healthy servers, then lower latency, then region {preferred_region}.
+- If info is missing, treat as neutral. Do not consider non-compliant CAPTCHA bypass.
+
+Return JSON ONLY:
+{
+  "shortlist": [
+    {"id": "<id>", "score": <0..1>, "subs": {"captcha": <0..1>, "health": <0|1>, "latency": <0..1>, "region": <0|0.1>}}
+  ],
+  "decision": {"primary": "<id|null>", "fallbacks": ["<id>", "..."]},
+  "rejected": [{"id": "<id>", "reasons": ["no_captcha"|"backed_off"|"other"]}]
+}
 """
 
 
