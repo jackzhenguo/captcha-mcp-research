@@ -1,5 +1,5 @@
-# api/server.py
-from fastapi import FastAPI, HTTPException, Request
+# api/index.py
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx, os
@@ -14,7 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-SECRET = "6LebX74rAAAAAPKIvCwdLvyZgdis2bS4NQ_1QYci"
+SECRET = os.getenv("RECAPTCHA_SECRET")  # set in Vercel env
 
 class VerifyBody(BaseModel):
     token: str
@@ -23,9 +23,14 @@ class VerifyBody(BaseModel):
 async def root():
     return {"ok": True, "service": "endapi"}
 
+# browsers commonly request .ico and .png
 @app.get("/favicon.ico")
-async def favicon():
-    return {"ok": True}
+async def favicon_ico():
+    return Response(status_code=204)
+
+@app.get("/favicon.png")
+async def favicon_png():
+    return Response(status_code=204)
 
 @app.post("/verify")
 async def verify(body: VerifyBody, request: Request):
