@@ -1,12 +1,15 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8" />
   <title>Invisible reCAPTCHA v2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://www.google.com/recaptcha/api.js?onload=recaptchaReady&render=explicit" async defer></script>
 </head>
-<body style="margin:0;font-family:system-ui;-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh">
+
+<body
+  style="margin:0;font-family:system-ui;-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh">
   <main style="text-align:center;max-width:720px;padding:24px">
     <h1>Invisible reCAPTCHA v2</h1>
     <button id="verifyBtn" onclick="triggerVerify()" disabled>Verify Now By Zhen</button>
@@ -42,8 +45,28 @@
     });
 
     function onRecaptchaSuccess(token) {
-      document.getElementById("verdict").textContent = "Client token: " + token.slice(0,12) + "…";
+      // 先显示客户端拿到的 token
+      document.getElementById("verdict").textContent = "Client token: " + token.slice(0, 12) + "…";
+
+      // 再把 token 发给后端校验
+      fetch("http://127.0.0.1:8000/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            document.getElementById("verdict").textContent = "PASS ✅ (score=" + (data.score ?? "n/a") + ")";
+          } else {
+            document.getElementById("verdict").textContent = "FAIL ❌ (" + (data.reason || "server verify failed") + ")";
+          }
+        })
+        .catch(() => {
+          document.getElementById("verdict").textContent = "FAIL: network/server error";
+        });
     }
   </script>
 </body>
+
 </html>
