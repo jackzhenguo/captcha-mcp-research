@@ -6,24 +6,28 @@ import httpx, os
 
 app = FastAPI()
 
-# allow your GitHub Pages origin (recommended) or "*"
-ALLOWED = ["https://jackzhenguo.github.io"]
+# --- config ---
+SECRET = os.getenv("RECAPTCHA_SECRET")  # set in Vercel env
+ALLOWED = [o.strip() for o in os.getenv(
+    "ALLOWED_ORIGINS",
+    "https://jackzhenguo.github.io"
+).split(",") if o.strip()]
+# -------------
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED,          # or ["*"]
+    allow_origins=ALLOWED,       # e.g. "https://a.com,https://b.com"
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-SECRET = os.getenv("RECAPTCHA_SECRET")
 
 class VerifyBody(BaseModel):
     token: str
 
 @app.get("/")
 async def root():
-    return {"ok": True, "service": "endapi"}
+    return {"ok": True, "service": "endapi", "allowed": ALLOWED}
 
 @app.get("/favicon.ico")
 async def favicon_ico():
@@ -35,8 +39,6 @@ async def favicon_png():
 
 @app.options("/verify")
 async def options_verify():
-    # FastAPI's CORSMiddleware normally handles this;
-    # returning 204 explicitly avoids edge cases.
     return PlainTextResponse(status_code=204)
 
 @app.post("/verify")
