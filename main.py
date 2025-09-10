@@ -29,8 +29,8 @@ async def main():
     ]
 
     init_state: AgentState = {
-        "task": "Fetch homepage title",
-        "targets": ["https://example.com"],
+        "task": "Invisable reCaptcha",
+        "targets": ["https://jackzhenguo.github.io/captcha-mcp-research/", ],
         "servers": servers,
         "backoff_until": {},
     }
