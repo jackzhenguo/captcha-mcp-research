@@ -6,11 +6,10 @@ import httpx, os
 
 app = FastAPI()
 
-# 仅用于本地调试：允许任意来源、方法、头
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # 如果用 file:// 打开页面，origin 为 "null"，用 * 最省事
-    allow_credentials=False,      # 如果你要带 cookie/凭证，这里必须 False 才能配合 "*"
+    allow_origins=["*"],          
+    allow_credentials=False,      
     allow_methods=["*"],
     allow_headers=["*"],
 )
