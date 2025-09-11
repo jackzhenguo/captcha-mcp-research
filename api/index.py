@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse, JSONResponse
 from pydantic import BaseModel
 import httpx, os
 
@@ -7,20 +8,33 @@ app = FastAPI()
 
 # --- config via env ---
 SECRET = os.getenv("RECAPTCHA_SECRET")  # set in Vercel env
-# comma-separated list, e.g. "https://jackzhenguo.github.io,https://your-site.vercel.app"
+# comma-separated list, e.g. "https://jackzhenguo.github.io,https://captcha-mcp-research.vercel.app"
 ALLOWED = [o.strip() for o in os.getenv(
     "ALLOWED_ORIGINS",
     "https://jackzhenguo.github.io"
 ).split(",") if o.strip()]
 # ----------------------
 
+# Normal CORS middleware (covers most cases)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED,       # or ["*"] for quick smoke tests
+    allow_origins=ALLOWED,       # or ["*"] for smoke tests (not with credentials)
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Safety net: attach CORS headers to every response that passes through FastAPI
+@app.middleware("http")
+async def ensure_cors_headers(request: Request, call_next):
+    response = await call_next(request)
+    origin = request.headers.get("Origin")
+    if "*" in ALLOWED:
+        response.headers["Access-Control-Allow-Origin"] = "*"
+    elif origin and origin in ALLOWED:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Vary"] = "Origin"
+    return response
 
 class VerifyBody(BaseModel):
     token: str
@@ -33,13 +47,27 @@ async def root():
 @app.get("/favicon.ico")
 async def favicon_ico():
     return Response(status_code=204)
-
 @app.get("/favicon.png")
 async def favicon_png():
     return Response(status_code=204)
 
-# NOTE: no custom @app.options("/verify") handler here.
-# CORSMiddleware will handle preflight automatically.
+# Explicit preflight handler for /verify (guarantees CORS headers)
+@app.options("/verify")
+async def options_verify(request: Request):
+    origin = request.headers.get("Origin", "")
+    headers = {
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "content-type",
+        "Access-Control-Max-Age": "86400",
+        "Vary": "Origin",
+    }
+    if "*" in ALLOWED:
+        headers["Access-Control-Allow-Origin"] = "*"
+        return PlainTextResponse(status_code=204, headers=headers)
+    if origin in ALLOWED:
+        headers["Access-Control-Allow-Origin"] = origin
+        return PlainTextResponse(status_code=204, headers=headers)
+    return PlainTextResponse("Origin not allowed", status_code=403, headers=headers)
 
 @app.post("/verify")
 async def verify(body: VerifyBody, request: Request):
@@ -55,10 +83,10 @@ async def verify(body: VerifyBody, request: Request):
             data={"secret": SECRET, "response": body.token, "remoteip": remote_ip},
         )
     r = resp.json()
-    return {
+    return JSONResponse({
         "success": r.get("success", False),
         "score": r.get("score"),
         "action": r.get("action"),
         "hostname": r.get("hostname"),
         "reason": ",".join(r.get("error-codes", [])) if not r.get("success") else "",
-    }
+    })
