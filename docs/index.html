@@ -51,7 +51,7 @@
       document.getElementById("verdict").textContent = "Client token: " + token.slice(0, 12) + "…";
 
       // 再把 token 发给后端校验
-      fetch("https://captcha-mcp-research.vercel.app/api/verify", {
+      fetch("https://captcha-mcp-vercel-server.vercel.app/api/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token })
