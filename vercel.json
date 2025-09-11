@@ -1,8 +1,7 @@
 {
   "framework": null,
-  "functions": { "api/**/*.py": { "runtime": "python3.11" } },
+  "functions": { "api/**/*.py": { "runtime": "vercel-python@3.11" } },
   "routes": [
-    { "src": "^/api/(.*)$", "dest": "/api/$1" },
-    { "src": "^/$", "dest": "/api/" }
+    { "src": "^/api/(.*)$", "dest": "/api/$1" }
   ]
 }
