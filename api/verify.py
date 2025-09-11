@@ -13,7 +13,7 @@ ALLOWED = [o.strip() for o in os.getenv(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED,   # for a smoke test you can temporarily use ["*"] with allow_credentials=False
+    allow_origins=ALLOWED,      # for a quick smoke test you can set ["*"] (keep allow_credentials=False)
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -22,11 +22,11 @@ app.add_middleware(
 class VerifyBody(BaseModel):
     token: str | None = None
 
-@app.get("/")  # GET https://<domain>/api/verify
+@app.get("/")              # GET /api/verify
 async def root():
     return {"ok": True, "service": "verify", "path": "/api/verify", "allowed": ALLOWED}
 
-@app.post("/")  # POST https://<domain>/api/verify
+@app.post("/")             # POST /api/verify
 async def verify(request: Request):
     token = None
     ct = (request.headers.get("content-type") or "").lower()
