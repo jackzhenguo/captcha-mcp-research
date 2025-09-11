@@ -59,7 +59,7 @@
         .then(res => res.json())
         .then(data => {
           if (data.success) {
-            document.getElementById("verdict").textContent = "PASS ✅ (score=" + (data.score ?? "n/a") + ")";
+            document.getElementById("verdict").textContent = "PASS ✅";
           } else {
             document.getElementById("verdict").textContent = "FAIL ❌ (" + (data.reason || "server verify failed") + ")";
           }
