@@ -15,16 +15,16 @@ ALLOWED = [o.strip() for o in os.getenv(
 ).split(",") if o.strip()]
 # ----------------------
 
-# Normal CORS middleware (covers most cases)
+# Normal CORS middleware (covers typical cases)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED,       # or ["*"] for smoke tests (not with credentials)
+    allow_origins=ALLOWED,       # for quick smoke test you can use ["*"] (keep allow_credentials=False)
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Safety net: attach CORS headers to every response that passes through FastAPI
+# Safety net: ensure Access-Control-Allow-Origin is present on any response produced by the app
 @app.middleware("http")
 async def ensure_cors_headers(request: Request, call_next):
     response = await call_next(request)
@@ -43,15 +43,16 @@ class VerifyBody(BaseModel):
 async def root():
     return {"ok": True, "service": "endapi", "allowed": ALLOWED}
 
-# quiet browser icon fetches
+# Quiet browser icon fetches
 @app.get("/favicon.ico")
 async def favicon_ico():
     return Response(status_code=204)
+
 @app.get("/favicon.png")
 async def favicon_png():
     return Response(status_code=204)
 
-# Explicit preflight handler for /verify (guarantees CORS headers)
+# EXPLICIT PREFLIGHT for /verify — guarantees CORS headers on OPTIONS
 @app.options("/verify")
 async def options_verify(request: Request):
     origin = request.headers.get("Origin", "")
