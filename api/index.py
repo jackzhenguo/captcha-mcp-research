@@ -1,22 +1,22 @@
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 import httpx, os
 
 app = FastAPI()
 
-# --- config ---
+# --- config via env ---
 SECRET = os.getenv("RECAPTCHA_SECRET")  # set in Vercel env
+# comma-separated list, e.g. "https://jackzhenguo.github.io,https://your-site.vercel.app"
 ALLOWED = [o.strip() for o in os.getenv(
     "ALLOWED_ORIGINS",
     "https://jackzhenguo.github.io"
 ).split(",") if o.strip()]
-# -------------
+# ----------------------
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED,       # e.g. "https://a.com,https://b.com"
+    allow_origins=ALLOWED,       # or ["*"] for quick smoke tests
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,6 +29,7 @@ class VerifyBody(BaseModel):
 async def root():
     return {"ok": True, "service": "endapi", "allowed": ALLOWED}
 
+# quiet browser icon fetches
 @app.get("/favicon.ico")
 async def favicon_ico():
     return Response(status_code=204)
@@ -37,9 +38,8 @@ async def favicon_ico():
 async def favicon_png():
     return Response(status_code=204)
 
-@app.options("/verify")
-async def options_verify():
-    return PlainTextResponse(status_code=204)
+# NOTE: no custom @app.options("/verify") handler here.
+# CORSMiddleware will handle preflight automatically.
 
 @app.post("/verify")
 async def verify(body: VerifyBody, request: Request):
