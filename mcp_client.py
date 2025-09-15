@@ -2,7 +2,7 @@
 import asyncio
 import itertools
 import json
-from typing import Any, Dict, Optional, List, Set
+from typing import Any, Dict, Optional, List, Set, Tuple
 
 import aiohttp
 
@@ -25,7 +25,12 @@ def _parse_sse_text_to_json(text: str) -> dict:
 
 class MCPConnector:
     """
-    JSON-RPC client for @playwright/mcp with SSE support + session id forwarding.
+    JSON-RPC client for @playwright/mcp with:
+      - SSE session binding (GET /sse)
+      - inline JSON/SSE handling on POST
+      - sessionId capture and forwarding (URL/header + params)
+      - POST endpoint fallbacks and reuse of the variant that worked
+      - verbose debug logs
     """
 
     def __init__(self, base_url: str, token: Optional[str] = None, timeout: int = 45):
@@ -41,7 +46,9 @@ class MCPConnector:
         self._pending: Dict[int, asyncio.Future] = {}
 
         self.sse_url = self._derive_sse_url(self.base_url)
-        self._session_id: Optional[str] = None  # <-- captured from SSE greeting
+        self.msg_url = self._derive_messages_url(self.base_url)
+        self._session_id: Optional[str] = None
+        self._last_working_label: Optional[str] = None  # remember which POST variant worked
 
         self.available_tools: Set[str] = set()
 
@@ -51,8 +58,17 @@ class MCPConnector:
         if u.endswith("/sse"):
             return u
         if u.endswith("/mcp"):
-            return u[:-4] + "/sse"  # strip 'mcp' and add '/sse'
+            return u[:-4] + "/sse"
         return u + "/sse"
+
+    @staticmethod
+    def _derive_messages_url(base_url: str) -> str:
+        u = base_url.rstrip("/")
+        if u.endswith("/messages"):
+            return u
+        if u.endswith("/mcp"):
+            return u[:-4] + "/messages"
+        return u + "/messages"
 
     async def __aenter__(self):
         headers = {
@@ -69,7 +85,7 @@ class MCPConnector:
         )
 
         try:
-            # 1) Bind session state by connecting SSE first
+            # 1) Bind session state via SSE
             print("[MCP] Connecting SSE …")
             self._sse_resp = await self._session.get(
                 self.sse_url,
@@ -78,12 +94,15 @@ class MCPConnector:
             if self._sse_resp.status != 200:
                 txt = await self._sse_resp.text()
                 raise MCPError(f"SSE connect HTTP {self._sse_resp.status}: {txt[:300]}")
+            print(f"[MCP] SSE connected: {self._sse_resp.status}; "
+                  f"Set-Cookie={self._sse_resp.headers.get('Set-Cookie', '<none>')}")
 
             self._sse_task = asyncio.create_task(self._sse_reader(), name="mcp_sse_reader")
 
-            # 2) Initialize and list tools (now bound to this SSE session)
+            # 2) Initialize → list tools (no notifications)
             print("[MCP] Initializing …")
             await self.initialize()
+
             print("[MCP] Listing tools …")
             await self.list_tools()
             print(f"[MCP] Tools ready: {sorted(self.available_tools)}")
@@ -142,30 +161,29 @@ class MCPConnector:
         print("[MCP] SSE reader ended")
 
     async def _process_sse_message(self, msg: str):
-        # capture sessionId from any non-JSON 'data:' greeting like "/sse?sessionId=..."
+        # Capture sessionId from greeting like "/sse?sessionId=UUID"
         for line in msg.splitlines():
             s = line.strip()
             if s.startswith("data:"):
                 payload = s[5:].strip()
                 if "sessionId=" in payload and self._session_id is None:
-                    # e.g., "/sse?sessionId=UUID"
-                    sid = payload.split("sessionId=", 1)[1].strip()
-                    sid = sid.split("&", 1)[0]
-                    sid = sid.split(" ", 1)[0]
+                    sid = payload.split("sessionId=", 1)[1]
+                    for sep in ("&", " ", "\t", "\r"):
+                        sid = sid.split(sep, 1)[0]
+                    sid = sid.strip()
                     if sid:
                         self._session_id = sid
                         print(f"[MCP] Captured sessionId={self._session_id}")
 
-        # Extract last JSON data line (if any)
+        # Now try to parse JSON data:
         data_lines = [ln[5:].strip() for ln in msg.splitlines() if ln.strip().startswith("data:")]
         if not data_lines:
             return
-
         payload = data_lines[-1]
         try:
             obj = json.loads(payload)
         except Exception:
-            # Not JSON (likely the greeting we already handled)
+            # Non-JSON (greeting handled above)
             return
 
         rpc_id = obj.get("id")
@@ -177,19 +195,93 @@ class MCPConnector:
             kind = "error" if "error" in obj else "result" if "result" in obj else "unknown"
             print(f"[MCP] SSE {kind} (no waiter) id={rpc_id}: {str(obj)[:200]}")
 
-    def _post_url_and_headers(self) -> (str, Dict[str, str]):
-        """Build POST URL + extra headers, forwarding sessionId when known."""
-        url = self.base_url
-        extra_headers: Dict[str, str] = {}
+    # ---------- HTTP POST mechanics ----------
+
+    def _post_variants(self) -> List[Tuple[str, Dict[str, str], str]]:
+        """
+        Return (url, extra_headers, label) variants to try in order.
+        Prefer reusing last working variant; otherwise:
+          1) mcp
+          2) messages
+          3) mcp?sid
+          4) messages?sid
+        """
+        variants: List[Tuple[str, Dict[str, str], str]] = []
+
+        # Build base candidates
+        cand: List[Tuple[str, Dict[str, str], str]] = []
+
+        # 1) /mcp (cookies only)
+        cand.append((self.base_url, {}, "mcp"))
+
+        # 2) /messages (cookies only)
+        cand.append((self.msg_url, {}, "messages"))
+
+        # 3) /mcp?sessionId=... + header
         if self._session_id:
-            sep = "&" if ("?" in url) else "?"
-            url = f"{url}{sep}sessionId={self._session_id}"
-            extra_headers["X-Session-Id"] = self._session_id  # belt & suspenders
-        return url, extra_headers
+            url = f"{self.base_url}{'&' if '?' in self.base_url else '?'}sessionId={self._session_id}"
+            cand.append((url, {"X-Session-Id": self._session_id}, "mcp?sid"))
+
+        # 4) /messages?sessionId=... + header
+        if self._session_id:
+            url = f"{self.msg_url}{'&' if '?' in self.msg_url else '?'}sessionId={self._session_id}"
+            cand.append((url, {"X-Session-Id": self._session_id}, "messages?sid"))
+
+        # If we know what worked last time, try it first
+        if self._last_working_label:
+            ordered = [x for x in cand if x[2] == self._last_working_label] + [x for x in cand if x[2] != self._last_working_label]
+            return ordered
+        return cand
+
+    async def _post_rpc(self, payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+        """
+        Try POST variants until one returns 200 with parseable JSON/SSE.
+        Return (obj, label) where obj is the parsed JSON-RPC envelope (or None).
+        """
+        assert self._session is not None
+        last_err: Optional[str] = None
+
+        for url, extra_headers, label in self._post_variants():
+            async with self._session.post(url, json=payload, headers=extra_headers) as resp:
+                text = await resp.text()
+                ctype = resp.headers.get("Content-Type", "")
+                cookie_hdr = resp.headers.get("Set-Cookie", "")
+                print(f"[MCP] POST {label} -> status={resp.status} ctype={ctype or '<none>'} "
+                      f"Set-Cookie={cookie_hdr or '<none>'}")
+                if resp.status != 200:
+                    last_err = f"HTTP {resp.status}: {text[:300]}"
+                    continue
+
+                # Inline JSON
+                if "application/json" in ctype or text.lstrip().startswith("{"):
+                    try:
+                        inline_obj = json.loads(text)
+                    except Exception:
+                        inline_obj = None
+                    if inline_obj is not None:
+                        return inline_obj, label
+
+                # Inline SSE
+                if "text/event-stream" in ctype or text.lstrip().startswith(("event:", "data:")):
+                    try:
+                        inline_sse_obj = _parse_sse_text_to_json(text)
+                    except Exception:
+                        inline_sse_obj = None
+                    if inline_sse_obj is not None:
+                        return inline_sse_obj, label
+
+                last_err = f"Unrecognized 200 response: {text[:200]}"
+
+        raise MCPError(last_err or "All POST variants failed")
 
     async def _rpc(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         if not self._session:
             raise MCPError("Session not initialized")
+
+        # ---- PATCH: embed sessionId into params for every RPC after we've captured it
+        params = dict(params)
+        if self._session_id and "sessionId" not in params:
+            params["sessionId"] = self._session_id
 
         rpc_id = next(self._id)
         payload = {
@@ -199,53 +291,24 @@ class MCPConnector:
             "params": params,
         }
         print(f"[MCP] → {method} (id={rpc_id}) params={params}")
-
         # waiter for SSE-delivered result
         loop = asyncio.get_event_loop()
         fut: asyncio.Future = loop.create_future()
         self._pending[rpc_id] = fut
 
-        post_url, extra_headers = self._post_url_and_headers()
-        async with self._session.post(post_url, json=payload, headers=extra_headers) as resp:
-            text = await resp.text()
-            ctype = resp.headers.get("Content-Type", "")
-            print(f"[MCP] ← {method} POST status={resp.status} ctype={ctype or '<none>'}")
+        # POST (with fallbacks)
+        obj, label = await self._post_rpc(payload)
 
-            if resp.status != 200:
-                self._pending.pop(rpc_id, None)
-                raise MCPError(f"{method} HTTP {resp.status}: {text[:300]}")
+        # If inline handled, resolve waiter and return
+        if obj is not None and isinstance(obj, dict) and ("result" in obj or "error" in obj):
+            self._pending.pop(rpc_id, None)
+            if "error" in obj:
+                raise MCPError(f"{method} error: {obj['error']}")
+            self._last_working_label = label or self._last_working_label
+            print(f"[MCP] {method} (inline via {self._last_working_label}) result keys: {list(obj['result'].keys())}")
+            return obj["result"]
 
-            # Inline JSON
-            if "application/json" in ctype or text.lstrip().startswith("{"):
-                try:
-                    inline_obj = json.loads(text)
-                except Exception:
-                    inline_obj = None
-                if inline_obj is not None:
-                    self._pending.pop(rpc_id, None)
-                    if "error" in inline_obj:
-                        raise MCPError(f"{method} error: {inline_obj['error']}")
-                    if "result" not in inline_obj:
-                        raise MCPError(f"{method} missing result: {inline_obj}")
-                    print(f"[MCP] {method} (inline-json) result keys: {list(inline_obj['result'].keys())}")
-                    return inline_obj["result"]
-
-            # Inline SSE (text/event-stream on POST)
-            if "text/event-stream" in ctype or text.lstrip().startswith(("event:", "data:")):
-                try:
-                    inline_sse_obj = _parse_sse_text_to_json(text)
-                except Exception:
-                    inline_sse_obj = None
-                if inline_sse_obj is not None:
-                    self._pending.pop(rpc_id, None)
-                    if "error" in inline_sse_obj:
-                        raise MCPError(f"{method} error: {inline_sse_obj['error']}")
-                    if "result" not in inline_sse_obj:
-                        raise MCPError(f"{method} missing result: {inline_sse_obj}")
-                    print(f"[MCP] {method} (inline-sse) result keys: {list(inline_sse_obj['result'].keys())}")
-                    return inline_sse_obj["result"]
-
-        # Wait for SSE reader to deliver the result
+        # Wait for SSE if not inline
         try:
             obj = await asyncio.wait_for(fut, timeout=self.timeout)
         except asyncio.TimeoutError:
@@ -262,7 +325,7 @@ class MCPConnector:
     # ---------- Public RPCs ----------
 
     async def initialize(self) -> Dict[str, Any]:
-        return await self._rpc(
+        res = await self._rpc(
             "initialize",
             {
                 "protocolVersion": "2024-11-05",
@@ -270,6 +333,7 @@ class MCPConnector:
                 "capabilities": {},
             },
         )
+        return res
 
     async def list_tools(self) -> List[Dict[str, Any]]:
         result = await self._rpc("tools/list", {})
